@@ -18,4 +18,4 @@ The `setup_swap.sh` script is designed to help you easily add swap space to your
    You can directly execute the script using `curl`:
 
    ```bash
-   bash <(curl -s https://raw.githubusercontent.com/YourGitHubUsername/YourRepoName/main/setup_swap.sh)
+   bash <(curl -s https://raw.githubusercontent.com/rizzlerxd/AddSwap/main/setup_swap.sh)
