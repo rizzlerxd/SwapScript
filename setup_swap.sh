@@ -1,123 +1,69 @@
 #!/bin/bash
 
-# Function to print the message in color
-print_info() {
-    echo -e "\033[1;32m$1\033[0m"
-}
+# Display a welcome message
+echo "Please ensure you are running this script as root."
+echo "This script is created by Rizzler and sponsored by quvo.pro."
 
-# Function to print an error message in red
-print_error() {
-    echo -e "\033[1;31m$1\033[0m"
-}
-
-print_info "Please make sure you're running this script as root."
-print_info "This script is created by Rizzler and sponsored by Quvo.pro"
-
-# Check if swap is currently enabled
-swap_exists() {
-    swapon --show | grep -q '/swapfile'
-}
-
-# Function to remove existing swap file
-remove_existing_swap() {
-    if swap_exists; then
-        print_info "Removing existing swap file..."
-        
-        # Disable the swap file
-        swapoff /swapfile
-        
-        # Remove the swap file entry from fstab
-        sed -i '/\/swapfile/d' /etc/fstab
-        
-        # Remove the swap file
-        rm -f /swapfile
-        
-        print_info "Existing swap file removed."
+# Function to check if swap file exists
+function check_existing_swap() {
+    if [[ -e /swapfile || -e /swap.img ]]; then
+        echo "Existing swap file detected. Removing it..."
+        sudo swapoff /swapfile 2>/dev/null || true
+        sudo rm -f /swapfile
+        sudo rm -f /swap.img
+        sudo sed -i '/\/swapfile/d' /etc/fstab 2>/dev/null || true
+        echo "Existing swap file removed."
     fi
 }
 
-# Function to create swap file
-create_swap() {
-    # Remove existing swap file if any
-    remove_existing_swap
+# Function to create a swap file
+function create_swap() {
+    read -p "Enter the size of the swap file (e.g., 1G for 1 gigabyte, 512M for 512 megabytes): " size
 
-    # Prompt user for swap size
-    read -p "Enter the size of the swap file (e.g., 1G for 1 gigabyte): " swap_size
+    # Append 'G' if no unit is specified
+    if [[ ! $size =~ ^[0-9]+[MG]$ ]]; then
+        size="${size}G"
+    fi
 
-    print_info "Creating a ${swap_size} swap file..."
+    # Validate size input
+    if [[ ! $size =~ ^[0-9]+[MG]$ ]]; then
+        echo "Invalid size. Please specify size in megabytes (M) or gigabytes (G)."
+        exit 1
+    fi
 
     # Create swap file
-    fallocate -l ${swap_size} /swapfile
-
-    # Secure the swap file
-    chmod 600 /swapfile
-
-    # Set up the swap space
-    mkswap /swapfile
-
-    # Enable the swap file
-    swapon /swapfile
-
-    # Backup fstab
-    print_info "Backing up /etc/fstab to /etc/fstab.bak..."
-    cp /etc/fstab /etc/fstab.bak
-
-    # Add swap entry to fstab
-    print_info "Adding swap entry to /etc/fstab..."
-    echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
-
-    # Set swap parameters
-    print_info "Setting swap parameters..."
-    sysctl vm.swappiness=10
-    sysctl vm.vfs_cache_pressure=50
-
-    # Update sysctl configuration file
-    print_info "Updating /etc/sysctl.conf with swap parameters..."
-    {
-        echo 'vm.swappiness=10'
-        echo 'vm.vfs_cache_pressure=50'
-    } | tee -a /etc/sysctl.conf
-
-    print_info "Swap file setup is complete."
-}
-
-# Function to remove swap file
-remove_swap() {
-    if ! swap_exists; then
-        print_error "No swap file is currently mounted at /swapfile."
-        print_info "The script will now exit."
+    echo "Creating a swap file of size $size..."
+    sudo fallocate -l "$size" /swapfile
+    if [[ $? -ne 0 ]]; then
+        echo "Error creating swap file. Please ensure you have sufficient disk space."
         exit 1
     fi
 
-    print_info "Removing the swap file..."
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to format swap file. It may be corrupted or too small."
+        exit 1
+    fi
 
-    # Disable the swap file
-    swapoff /swapfile
+    sudo swapon /swapfile
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to enable swap file."
+        exit 1
+    fi
 
-    # Remove the swap file entry from fstab
-    sed -i '/\/swapfile/d' /etc/fstab
+    # Update /etc/fstab
+    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
-    # Remove the swap file
-    rm -f /swapfile
+    # Update system configuration
+    sudo sysctl vm.swappiness=10
+    sudo sysctl vm.vfs_cache_pressure=50
+    sudo bash -c "echo 'vm.swappiness=10' >> /etc/sysctl.conf"
+    sudo bash -c "echo 'vm.vfs_cache_pressure=50' >> /etc/sysctl.conf"
 
-    print_info "Swap file removed successfully."
+    echo "Swap file created and system configuration updated."
 }
 
-# Main menu
-echo "Choose an option:"
-echo "1) Create a swap file"
-echo "2) Remove the swap file"
-read -p "Enter your choice (1 or 2): " choice
-
-case $choice in
-    1)
-        create_swap
-        ;;
-    2)
-        remove_swap
-        ;;
-    *)
-        print_error "Invalid choice. Exiting script."
-        exit 1
-        ;;
-esac
+# Main logic
+check_existing_swap
+create_swap
