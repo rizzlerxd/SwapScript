@@ -1,69 +1,64 @@
 #!/bin/bash
 
-# Display a welcome message
-echo "Please ensure you are running this script as root."
-echo "This script is created by Rizzler and sponsored by quvo.pro."
+# Check for root privileges
+if [[ $EUID -ne 0 ]]; then
+    echo "Please run this script as root or with sudo."
+    exit 1
+fi
 
-# Function to check if swap file exists
-function check_existing_swap() {
-    if [[ -e /swapfile || -e /swap.img ]]; then
-        echo "Existing swap file detected. Removing it..."
-        sudo swapoff /swapfile 2>/dev/null || true
-        sudo rm -f /swapfile
-        sudo rm -f /swap.img
-        sudo sed -i '/\/swapfile/d' /etc/fstab 2>/dev/null || true
-        echo "Existing swap file removed."
-    fi
-}
+echo "Made by Rizzler, sponsored by Quvo.pro"
+echo "Creating swap file..."
 
-# Function to create a swap file
-function create_swap() {
-    read -p "Enter the size of the swap file (e.g., 1G for 1 gigabyte, 512M for 512 megabytes): " size
+# Prompt user for swap size
+read -p "Enter the size of swap file (e.g., 1G, 512M, or just a number for megabytes): " SWAP_SIZE
 
-    # Append 'G' if no unit is specified
-    if [[ ! $size =~ ^[0-9]+[MG]$ ]]; then
-        size="${size}G"
-    fi
+# Check if user provided a unit; default to megabytes if not
+if [[ ! "$SWAP_SIZE" =~ ^[0-9]+[G|M]?$ ]]; then
+    SWAP_SIZE="${SWAP_SIZE}M"
+fi
 
-    # Validate size input
-    if [[ ! $size =~ ^[0-9]+[MG]$ ]]; then
-        echo "Invalid size. Please specify size in megabytes (M) or gigabytes (G)."
-        exit 1
-    fi
+# Convert to megabytes if user provided a size in gigabytes
+if [[ "$SWAP_SIZE" =~ ^[0-9]+G$ ]]; then
+    SWAP_SIZE=$(echo "$SWAP_SIZE" | sed 's/G//')
+    SWAP_SIZE=$(expr $SWAP_SIZE \* 1024)M
+fi
 
-    # Create swap file
-    echo "Creating a swap file of size $size..."
-    sudo fallocate -l "$size" /swapfile
-    if [[ $? -ne 0 ]]; then
-        echo "Error creating swap file. Please ensure you have sufficient disk space."
-        exit 1
-    fi
+echo "Creating swap file of size ${SWAP_SIZE}..."
 
-    sudo chmod 600 /swapfile
-    sudo mkswap /swapfile
-    if [[ $? -ne 0 ]]; then
-        echo "Failed to format swap file. It may be corrupted or too small."
-        exit 1
-    fi
+# Create swap file
+fallocate -l ${SWAP_SIZE} /swapfile 2>/dev/null
 
-    sudo swapon /swapfile
-    if [[ $? -ne 0 ]]; then
-        echo "Failed to enable swap file."
-        exit 1
-    fi
+# Check if fallocate was successful, otherwise use dd
+if [ ! -f /swapfile ]; then
+    echo "fallocate failed, using dd to create swap file..."
+    dd if=/dev/zero of=/swapfile bs=1M count=${SWAP_SIZE%M} 2>/dev/null
+fi
 
-    # Update /etc/fstab
-    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+chmod 600 /swapfile
+mkswap /swapfile 2>/dev/null
 
-    # Update system configuration
-    sudo sysctl vm.swappiness=10
-    sudo sysctl vm.vfs_cache_pressure=50
-    sudo bash -c "echo 'vm.swappiness=10' >> /etc/sysctl.conf"
-    sudo bash -c "echo 'vm.vfs_cache_pressure=50' >> /etc/sysctl.conf"
+# Check if mkswap was successful
+if [ $? -ne 0 ]; then
+    echo "Error creating swap space. Please ensure the size is at least 40 KiB."
+    rm -f /swapfile
+    exit 1
+fi
 
-    echo "Swap file created and system configuration updated."
-}
+swapon /swapfile
 
-# Main logic
-check_existing_swap
-create_swap
+# Backup and update fstab
+cp /etc/fstab /etc/fstab.bak
+echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
+
+# Update sysctl.conf
+if ! grep -q "vm.swappiness" /etc/sysctl.conf; then
+    echo "vm.swappiness=10" >> /etc/sysctl.conf
+fi
+
+if ! grep -q "vm.vfs_cache_pressure" /etc/sysctl.conf; then
+    echo "vm.vfs_cache_pressure=50" >> /etc/sysctl.conf
+fi
+
+sysctl -p
+
+echo "Swap file created and enabled successfully."
