@@ -1,47 +1,102 @@
 #!/bin/bash
 
-# Display a welcome message with sponsor information
-echo "Please make sure you are running this script as root."
-echo "Script made by Rizzler, sponsored by Quvo.pro."
-echo
+# Function to print the message in color
+print_info() {
+    echo -e "\033[1;32m$1\033[0m"
+}
 
-# Prompt the user for the amount of swap to add
-read -p "Enter the amount of swap space to add (e.g., 1G for 1 gigabyte): " swap_size
+# Function to print an error message in red
+print_error() {
+    echo -e "\033[1;31m$1\033[0m"
+}
 
-# Validate input
-if [[ -z "$swap_size" ]]; then
-    echo "No size entered. Exiting."
-    exit 1
-fi
+print_info "Please make sure you're running this script as root."
+print_info "This script is created by Rizzler and sponsored by Quvo.pro"
 
-echo "Creating a swap file of size $swap_size..."
-# Create the swap file
-sudo fallocate -l "$swap_size" /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo "Swap file created and activated."
+# Check if swap is currently enabled
+swap_exists() {
+    swapon --show | grep -q '/swapfile'
+}
 
-# Backup fstab and add swap file entry
-echo "Backing up /etc/fstab to /etc/fstab.bak..."
-sudo cp /etc/fstab /etc/fstab.bak
-echo "Adding swap file entry to /etc/fstab..."
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-echo "Swap file entry added to /etc/fstab."
+# Function to create swap file
+create_swap() {
+    # Prompt user for swap size
+    read -p "Enter the size of the swap file (e.g., 1G for 1 gigabyte): " swap_size
 
-# Set swap parameters
-echo "Setting swap parameters..."
-sudo sysctl vm.swappiness=10
-sudo sysctl vm.vfs_cache_pressure=50
+    print_info "Creating a ${swap_size} swap file..."
 
-# Update sysctl configuration
-echo "Updating /etc/sysctl.conf with new parameters..."
-echo "vm.swappiness=10" | sudo tee -a /etc/sysctl.conf
-echo "vm.vfs_cache_pressure=50" | sudo tee -a /etc/sysctl.conf
+    # Create swap file
+    fallocate -l ${swap_size} /swapfile
 
-# Reload sysctl configuration
-echo "Reloading sysctl configuration..."
-sudo sysctl -p
-echo "Sysctl configuration reloaded."
+    # Secure the swap file
+    chmod 600 /swapfile
 
-echo "Swap setup complete."
+    # Set up the swap space
+    mkswap /swapfile
+
+    # Enable the swap file
+    swapon /swapfile
+
+    # Backup fstab
+    print_info "Backing up /etc/fstab to /etc/fstab.bak..."
+    cp /etc/fstab /etc/fstab.bak
+
+    # Add swap entry to fstab
+    print_info "Adding swap entry to /etc/fstab..."
+    echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
+
+    # Set swap parameters
+    print_info "Setting swap parameters..."
+    sysctl vm.swappiness=10
+    sysctl vm.vfs_cache_pressure=50
+
+    # Update sysctl configuration file
+    print_info "Updating /etc/sysctl.conf with swap parameters..."
+    {
+        echo 'vm.swappiness=10'
+        echo 'vm.vfs_cache_pressure=50'
+    } | tee -a /etc/sysctl.conf
+
+    print_info "Swap file setup is complete."
+}
+
+# Function to remove swap file
+remove_swap() {
+    if ! swap_exists; then
+        print_error "No swap file is currently mounted at /swapfile."
+        print_info "The script will now exit."
+        exit 1
+    fi
+
+    print_info "Removing the swap file..."
+
+    # Disable the swap file
+    swapoff /swapfile
+
+    # Remove the swap file entry from fstab
+    sed -i '/\/swapfile/d' /etc/fstab
+
+    # Remove the swap file
+    rm -f /swapfile
+
+    print_info "Swap file removed successfully."
+}
+
+# Main menu
+echo "Choose an option:"
+echo "1) Create a swap file"
+echo "2) Remove the swap file"
+read -p "Enter your choice (1 or 2): " choice
+
+case $choice in
+    1)
+        create_swap
+        ;;
+    2)
+        remove_swap
+        ;;
+    *)
+        print_error "Invalid choice. Exiting script."
+        exit 1
+        ;;
+esac
