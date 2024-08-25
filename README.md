@@ -16,4 +16,4 @@ This script allows you to easily create or remove a swap file on your Linux syst
 You can easily run the script using the following `curl` command:
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/rizzlerxd/AddSwap/main/setup_swap.sh)
+bash <(curl -s https://raw.githubusercontent.com/rizzlerxd/Swap/main/setup_swap.sh)
