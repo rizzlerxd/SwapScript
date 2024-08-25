@@ -2,8 +2,8 @@
 
 # Function to display usage
 usage() {
-    echo "Usage: $0 <swap-size-in-GB>"
-    echo "Example: $0 1  # This will create a 1GB swap file"
+    echo "Usage: $0"
+    echo "This script will prompt you to enter the swap size in GB."
     exit 1
 }
 
@@ -13,13 +13,10 @@ if [ "$(id -u)" -ne "0" ]; then
     exit 1
 fi
 
-# Check if the correct number of arguments is provided
-if [ "$#" -ne 1 ]; then
-    usage
-fi
+# Prompt user for the swap size
+read -p "Enter the size of the swap file in GB (e.g., 1 for 1GB): " SWAP_SIZE_GB
 
-# Check if the argument is a positive integer
-SWAP_SIZE_GB="$1"
+# Check if the input is a positive integer
 if ! [[ "$SWAP_SIZE_GB" =~ ^[0-9]+$ ]] || [ "$SWAP_SIZE_GB" -le 0 ]; then
     echo "Error: Swap size must be a positive integer." 1>&2
     usage
