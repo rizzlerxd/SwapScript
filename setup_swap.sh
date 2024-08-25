@@ -1,69 +1,47 @@
 #!/bin/bash
 
-# Function to display usage
-usage() {
-    echo "Usage: $0"
-    echo "This script will prompt you to enter the swap size in GB."
-    exit 1
-}
+# Display a welcome message with sponsor information
+echo "Please make sure you are running this script as root."
+echo "Script made by Rizzler, sponsored by Quvo.pro."
+echo
 
-# Check if the script is run as root
-if [ "$(id -u)" -ne "0" ]; then
-    echo "This script must be run as root" 1>&2
+# Prompt the user for the amount of swap to add
+read -p "Enter the amount of swap space to add (e.g., 1G for 1 gigabyte): " swap_size
+
+# Validate input
+if [[ -z "$swap_size" ]]; then
+    echo "No size entered. Exiting."
     exit 1
 fi
 
-# Prompt user for the swap size
-read -p "Enter the size of the swap file in GB (e.g., 1 for 1GB): " SWAP_SIZE_GB
+echo "Creating a swap file of size $swap_size..."
+# Create the swap file
+sudo fallocate -l "$swap_size" /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo "Swap file created and activated."
 
-# Check if the input is a positive integer
-if ! [[ "$SWAP_SIZE_GB" =~ ^[0-9]+$ ]] || [ "$SWAP_SIZE_GB" -le 0 ]; then
-    echo "Error: Swap size must be a positive integer." 1>&2
-    usage
-fi
+# Backup fstab and add swap file entry
+echo "Backing up /etc/fstab to /etc/fstab.bak..."
+sudo cp /etc/fstab /etc/fstab.bak
+echo "Adding swap file entry to /etc/fstab..."
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+echo "Swap file entry added to /etc/fstab."
 
-# Create a swap file
-echo "Creating a swap file of size ${SWAP_SIZE_GB}G..."
-fallocate -l ${SWAP_SIZE_GB}G /swapfile
+# Set swap parameters
+echo "Setting swap parameters..."
+sudo sysctl vm.swappiness=10
+sudo sysctl vm.vfs_cache_pressure=50
 
-# Set permissions for the swap file
-echo "Setting permissions for the swap file..."
-chmod 600 /swapfile
+# Update sysctl configuration
+echo "Updating /etc/sysctl.conf with new parameters..."
+echo "vm.swappiness=10" | sudo tee -a /etc/sysctl.conf
+echo "vm.vfs_cache_pressure=50" | sudo tee -a /etc/sysctl.conf
 
-# Set up the swap space
-echo "Setting up the swap space..."
-mkswap /swapfile
+# Reload sysctl configuration
+echo "Reloading sysctl configuration..."
+sudo sysctl -p
+echo "Sysctl configuration reloaded."
 
-# Enable the swap space
-echo "Enabling the swap space..."
-swapon /swapfile
-
-# Backup the current fstab file
-echo "Backing up /etc/fstab..."
-cp /etc/fstab /etc/fstab.bak
-
-# Update /etc/fstab to enable swap on boot
-echo "Updating /etc/fstab..."
-echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
-
-# Set system parameters
-echo "Setting swappiness and cache pressure..."
-sysctl vm.swappiness=10
-sysctl vm.vfs_cache_pressure=50
-
-# Update /etc/sysctl.conf
-echo "Updating /etc/sysctl.conf..."
-{
-    echo 'vm.swappiness=10'
-    echo 'vm.vfs_cache_pressure=50'
-} >> /etc/sysctl.conf
-
-# Apply changes
-echo "Applying sysctl changes..."
-sysctl -p
-
-# Show swap usage
-echo "Swap is now enabled. Current swap usage:"
-swapon --show
-
-echo "Swap setup and system configuration completed successfully."
+echo "Swap setup complete."
