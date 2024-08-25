@@ -18,8 +18,29 @@ swap_exists() {
     swapon --show | grep -q '/swapfile'
 }
 
+# Function to remove existing swap file
+remove_existing_swap() {
+    if swap_exists; then
+        print_info "Removing existing swap file..."
+        
+        # Disable the swap file
+        swapoff /swapfile
+        
+        # Remove the swap file entry from fstab
+        sed -i '/\/swapfile/d' /etc/fstab
+        
+        # Remove the swap file
+        rm -f /swapfile
+        
+        print_info "Existing swap file removed."
+    fi
+}
+
 # Function to create swap file
 create_swap() {
+    # Remove existing swap file if any
+    remove_existing_swap
+
     # Prompt user for swap size
     read -p "Enter the size of the swap file (e.g., 1G for 1 gigabyte): " swap_size
 
