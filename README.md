@@ -1,21 +1,19 @@
-# Setup Swap Script
+# Swap File Management Script
 
-## Overview
-
-The `setup_swap.sh` script is designed to help you easily add swap space to your Linux system. It allows you to specify the amount of swap space in gigabytes (GB) and configures your system accordingly. The script sets up the swap file, updates system configurations, and ensures that your settings persist across reboots.
+This script allows you to easily create or remove a swap file on your Linux system. You can specify the size of the swap file you want to create. The script also handles existing swap files and updates system configurations accordingly.
 
 ## Features
 
-- **User Input:** Prompts you to specify the size of the swap file you wish to create.
-- **Swap File Creation:** Creates a swap file of the specified size.
-- **System Configuration:** Configures the swap file, updates `/etc/fstab` for persistence, and applies system settings.
-- **Persistent Settings:** Updates `/etc/sysctl.conf` to make swappiness and cache pressure settings persistent across reboots.
+- **Create a Swap File**: Specify the size of the swap file to be created (e.g., 1G for 1 gigabyte).
+- **Remove an Existing Swap File**: Remove the existing swap file and update the system configuration.
+- **Handles Existing Swap Files**: Automatically removes any existing swap file before creating a new one.
+- **Updates System Configuration**: Adjusts `vm.swappiness` and `vm.vfs_cache_pressure` settings and updates `/etc/sysctl.conf`.
 
-## How to Use
+## Usage
 
-1. **Download the Script**
+### Running the Script
 
-   You can directly execute the script using `curl`:
+You can easily run the script using the following `curl` command:
 
-   ```bash
-   bash <(curl -s https://raw.githubusercontent.com/rizzlerxd/AddSwap/main/setup_swap.sh)
+```bash
+bash <(curl -s https://raw.githubusercontent.com/rizzlerxd/AddSwap/main/setup_swap.sh)
